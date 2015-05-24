@@ -12,12 +12,9 @@ training <- read.table("pml-training.csv", header=TRUE, sep=",")
 testing <- read.table("pml-testing.csv", header=TRUE, sep=",")
 ```
 
-And to install the packages that will be used: caret & rattle.
+Load the correct libraries.
 ```{r}
 library(caret)
-# library(randomForest)
-# library(rattle)
-# library(gridExtra)
 ```
 
 ## Data cleanup
