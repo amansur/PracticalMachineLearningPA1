@@ -1,0 +1,127 @@
+# Using monitor data to classify exercises by correctness
+
+Individuals were asked to perform barbell bicep curls in one of five ways: correctly according to specification (class A), throwing the elbows to the front (class B), lifting the dumbbell only halfway (class C), lowering the dumbbell only halfway (class D), or throwing the hips to the front (class E). By using monitor data from the belt, forearm, arm, dumbbell, a machine learning algorithm can be trained to classify each movement to the appropriate category.
+
+http://groupware.les.inf.puc-rio.br/har#ixzz3PO5pnm1R
+
+## Loading the data
+The first step is to load the data.
+```{r cache=TRUE}
+setwd("G:/Coursework/PracticalMachineLearning")
+training <- read.table("pml-training.csv", header=TRUE, sep=",")
+testing <- read.table("pml-testing.csv", header=TRUE, sep=",")
+```
+
+And to install the packages that will be used: caret & rattle.
+```{r}
+library(caret)
+# library(randomForest)
+# library(rattle)
+# library(gridExtra)
+```
+
+## Data cleanup
+There are many NA values in the dataset as well as variables that are irrelevant to the analysis conducted. After cleaning up the dataset, we are left with 52 variables. 
+
+### Clearning the training data
+```{r}
+training.total <- grepl("^total", names(training))
+training.accel <- grepl("^accel", names(training))
+training.roll <- grepl("^roll", names(training))
+training.pitch <- grepl("^pitch", names(training))
+training.yaw <- grepl("^yaw", names(training))
+training.magnet <- grepl("^magnet", names(training))
+training.gyro <- grepl("^gyro", names(training))
+
+total.data <- training[, training.total]
+accel.data <- training[, training.accel]
+roll.data <- training[, training.roll]
+pitch.data <- training[, training.pitch]
+yaw.data <- training[, training.yaw]
+magnet.data <- training[, training.magnet]
+gyro.data <- training[, training.gyro]
+
+train.Classe <- cbind(accel.data, roll.data, pitch.data, yaw.data, magnet.data, gyro.data, total.data, training[, 160])
+
+colnames(train.Classe)[53] <- 'Classe'
+```
+
+### Cleaning the testing data
+```{r}
+testing.total <- grepl("^total", names(testing))
+testing.accel <- grepl("^accel", names(testing))
+testing.roll <- grepl("^roll", names(testing))
+testing.pitch <- grepl("^pitch", names(testing))
+testing.yaw <- grepl("^yaw", names(testing))
+testing.magnet <- grepl("^magnet", names(testing))
+testing.gyro <- grepl("^gyro", names(testing))
+
+t.total.data <- testing[, testing.total]
+t.accel.data <- testing[, testing.accel]
+t.roll.data <- testing[, testing.roll]
+t.pitch.data <- testing[, testing.pitch]
+t.yaw.data <- testing[, testing.yaw]
+t.magnet.data <- testing[, testing.magnet]
+t.gyro.data <- testing[, testing.gyro]
+
+test.Classe <- cbind(t.accel.data, t.roll.data, t.pitch.data, t.yaw.data,t.magnet.data, t.gyro.data, t.total.data, testing[ ,160])
+colnames(test.Classe)[53]<-'problem.id'
+```
+
+## Partitioning the data into training and testing subsets
+The training data is split into a training (60%) and testing (40%) subset
+```{r}
+set.seed(400)
+inTrain = createDataPartition(train.Classe$Classe, p = .60)[[1]]
+training.subset = train.Classe[inTrain, ]
+testing.subset = train.Classe[-inTrain, ]
+```
+
+## Machine learning algorith - random forest
+
+A random forest algorithm was used to create the learning model.
+
+```{r}
+set.seed(12345)
+
+fit <- train(Classe ~ ., method="rf", trControl = trainControl(method = "cv", number = 4), data = training.subset)
+print(fit)
+varImp(fit)
+classe.predict = predict(fit, testing.subset)
+confusionMatrix(testing.subset$Classe, classe.predict)
+```
+
+The model created by the random forest has an accuracy of 99.2%. All the varaibles also have a very high specificity and sensitivity. As the accuracy is already high, there was no need to preprocess the data as there may be a risk of overfitting.
+
+## In-sample and out-of-sample errors
+
+With our particular model, the in-sample error rate is 0, and the random forest model fits the data with 100% accuracy.
+
+```{r}
+insample.predict = predict(fit, training.subset)
+confusionMatrix(training.subset$Classe, insample.predict)
+```
+
+With the cross-validation subsample data set, the out-of-sample error can be determined. It is shown to be 99.2% accurate.
+```{r}
+outsample.predict = predict(fit, testing.subset)
+confusionMatrix(testing.subset$Classe, outsample.predict)
+```
+
+Finally we submit our test dataset of 20 samples to predict their classification.
+```{r}
+test.answers = predict(fit, newdata = testing)
+print(test.answers)
+
+## helper function to generate appropriate text files
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(test.answers)
+```
